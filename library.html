@@ -1,94 +1,286 @@
-<section class="library-page">
-  <h1>Your Library</h1>
-  <div class="library-list"></div>
-</section>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Liked Songs</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+  <section class="library-page">
+    <h1>
+      Liked Songs
+      <i class="fa-solid fa-heart" style="color:#ff4d6d; margin-left:8px;"></i>
+    </h1>
+    <div class="library-list"></div>
+  </section>
 
-<script>
-  const libraryContainer = document.querySelector(".library-list");
-  let library = JSON.parse(localStorage.getItem("library")) || [];
+  <!-- 🎵 Bottom Music Player -->
+  <div class="bottom-player">
+    <div class="song-info" id="currentSong">Select a song</div>
+    <div class="controls">
+      <button id="prev"><i class="fa-solid fa-backward"></i></button>
+      <button id="playPause"><i class="fa-solid fa-play"></i></button>
+      <button id="next"><i class="fa-solid fa-forward"></i></button>
+    </div>
+    <div class="progress">
+      <span id="currentTime">0:00</span>
+      <input type="range" id="progressBar" value="0" min="0" max="100">
+      <span id="duration">0:00</span>
+    </div>
+    <div class="volume">
+      <i class="fa-solid fa-volume-high"></i>
+      <input type="range" id="volume" min="0" max="1" step="0.1" value="1">
+    </div>
+  </div>
 
-  if (library.length === 0) {
-    libraryContainer.innerHTML = `<p style="color: gray;">No saved songs yet.</p>`;
-  } else {
-    libraryContainer.innerHTML = library
-      .map(
-        (song, index) => `
-      <div class="library-item">
-        <span>${song}</span>
-        <button onclick="removeFromLibrary(${index})" aria-label="Remove ${song}">Remove</button>
-      </div>
-    `
-      )
-      .join("");
-  }
+  <script>
+    const libraryContainer = document.querySelector(".library-list");
+    let likedSongs = JSON.parse(localStorage.getItem("library")) || [];
 
-  function removeFromLibrary(index) {
-    library.splice(index, 1);
-    localStorage.setItem("library", JSON.stringify(library));
-    location.reload();
-  }
-</script>
+    // 🎵 Player state
+    const player = {
+      audio: new Audio(),
+      currentIndex: 0,
+      isPlaying: false
+    };
 
-<style>
-.library-page {
-  max-width: 600px;
-  margin: 20px auto;
-  color: #1db954; /* Spotify green */
-  font-family: 'Poppins', sans-serif;
-  padding: 0 10px;
-}
+    // ✅ Encode file names properly (fix spaces in paths)
+    function safePath(songPath) {
+      const parts = songPath.split("/");
+      const file = encodeURIComponent(parts.pop());
+      return [...parts, file].join("/");
+    }
 
-.library-page h1 {
-  text-align: center;
-  margin-bottom: 20px;
-  font-size: 28px;
-}
+    // ✅ Render Liked Songs List
+    function renderLibrary() {
+      if (likedSongs.length === 0) {
+        libraryContainer.innerHTML = `<p style="color: gray;">No liked songs yet ❤️</p>`;
+        return;
+      }
 
-.library-list {
-  background: #121212;
-  padding: 20px;
-  border-radius: 10px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
+      libraryContainer.innerHTML = likedSongs
+        .map(
+          (song, index) => `
+        <div class="library-item">
+          <span>${song.split("/").pop()}</span>
+          <div class="buttons">
+            <button onclick="playFromList(${index})" aria-label="Play ${song}">
+              <i class="fa-solid fa-play"></i>
+            </button>
+            <button onclick="removeFromLibrary(${index})" aria-label="Remove ${song}">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </div>
+        </div>`
+        )
+        .join("");
+    }
+    renderLibrary();
 
-.library-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: #222;
-  color: #1db954;
-  padding: 10px 15px;
-  margin: 6px 0;
-  border-radius: 5px;
-  transition: background 0.3s ease, transform 0.2s ease;
-}
+    // ✅ Remove Song from Library
+    function removeFromLibrary(index) {
+      likedSongs.splice(index, 1);
+      localStorage.setItem("library", JSON.stringify(likedSongs));
+      renderLibrary();
+    }
 
-.library-item:hover {
-  background: #1a1a1a;
-  transform: scale(1.01);
-}
+    // 🎵 Bottom Player Elements
+    const currentSongEl = document.getElementById("currentSong");
+    const playPauseBtn = document.getElementById("playPause");
+    const progressBar = document.getElementById("progressBar");
+    const currentTimeEl = document.getElementById("currentTime");
+    const durationEl = document.getElementById("duration");
+    const volumeEl = document.getElementById("volume");
 
-.library-item button {
-  background: #1db954;
-  border: none;
-  color: #000;
-  font-weight: 600;
-  padding: 5px 12px;
-  cursor: pointer;
-  border-radius: 4px;
-  transition: background 0.3s ease, transform 0.2s ease;
-}
+    // ✅ Load Song
+    function loadSong(song) {
+      const safe = safePath(song);
+      console.log("Loading:", safe);
+      player.audio.src = safe;
+      player.audio.load();
+      currentSongEl.textContent = song.split("/").pop();
+    }
 
-.library-item button:hover {
-  background: #17a44c;
-  transform: scale(1.05);
-}
+    // ✅ Play Song
+    function playSong() {
+      player.audio.play().then(() => {
+        player.isPlaying = true;
+        playPauseBtn.innerHTML = `<i class="fa-solid fa-pause"></i>`;
+      }).catch(err => console.error("Playback error:", err));
+    }
 
-.library-list p {
-  text-align: center;
-  color: gray;
-  font-style: italic;
-  margin-top: 12px;
-}
+    // ✅ Pause Song
+    function pauseSong() {
+      player.audio.pause();
+      player.isPlaying = false;
+      playPauseBtn.innerHTML = `<i class="fa-solid fa-play"></i>`;
+    }
 
-</style>
+    // ✅ Play From List
+    function playFromList(index) {
+      player.currentIndex = index;
+      loadSong(likedSongs[player.currentIndex]);
+      playSong();
+    }
+
+    // 🎵 Play/Pause Toggle
+    playPauseBtn.addEventListener("click", () => {
+      if (player.isPlaying) {
+        pauseSong();
+      } else {
+        if (!player.audio.src && likedSongs.length > 0) {
+          loadSong(likedSongs[player.currentIndex]);
+        }
+        playSong();
+      }
+    });
+
+    // 🎵 Prev Song
+    document.getElementById("prev").addEventListener("click", () => {
+      if (likedSongs.length === 0) return;
+      player.currentIndex = (player.currentIndex > 0) ? player.currentIndex - 1 : likedSongs.length - 1;
+      loadSong(likedSongs[player.currentIndex]);
+      playSong();
+    });
+
+    // 🎵 Next Song
+    document.getElementById("next").addEventListener("click", () => {
+      if (likedSongs.length === 0) return;
+      player.currentIndex = (player.currentIndex < likedSongs.length - 1) ? player.currentIndex + 1 : 0;
+      loadSong(likedSongs[player.currentIndex]);
+      playSong();
+    });
+
+    // ✅ Auto play next
+    player.audio.addEventListener("ended", () => {
+      if (likedSongs.length > 0) {
+        player.currentIndex = (player.currentIndex < likedSongs.length - 1) ? player.currentIndex + 1 : 0;
+        loadSong(likedSongs[player.currentIndex]);
+        playSong();
+      }
+    });
+
+    // ✅ Progress Bar
+    player.audio.addEventListener("timeupdate", () => {
+      if (player.audio.duration) {
+        progressBar.value = (player.audio.currentTime / player.audio.duration) * 100;
+        currentTimeEl.textContent = formatTime(player.audio.currentTime);
+        durationEl.textContent = formatTime(player.audio.duration);
+      }
+    });
+
+    progressBar.addEventListener("input", () => {
+      player.audio.currentTime = (progressBar.value / 100) * player.audio.duration;
+    });
+
+    // ✅ Volume Control
+    volumeEl.addEventListener("input", () => {
+      player.audio.volume = volumeEl.value;
+    });
+
+    // ✅ Format Time (mm:ss)
+    function formatTime(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+    }
+  </script>
+
+  <style>
+    body {
+      margin-bottom: 100px;
+    }
+    .library-page {
+      max-width: 600px;
+      margin: 20px auto;
+      color: #1db954;
+      font-family: 'Poppins', sans-serif;
+    }
+    .library-page h1 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .library-list {
+      background: #121212;
+      padding: 20px;
+      border-radius: 10px;
+    }
+    .library-item {
+      display: flex;
+      justify-content: space-between;
+      background: #222;
+      color: #1db954;
+      padding: 10px 15px;
+      margin: 6px 0;
+      border-radius: 5px;
+      align-items: center;
+    }
+    .buttons {
+      display: flex;
+      gap: 8px;
+    }
+    .library-item button {
+      background: #1db954;
+      border: none;
+      color: #000;
+      font-weight: 600;
+      padding: 6px 12px;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: background 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .library-item button:hover {
+      background: #17a44c;
+    }
+    /* 🎵 Bottom Player */
+    .bottom-player {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      background: #000;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 20px;
+      border-top: 2px solid #1db954;
+      font-family: 'Poppins', sans-serif;
+      gap: 15px;
+    }
+    .bottom-player .controls button {
+      background: none;
+      border: none;
+      color: #1db954;
+      font-size: 18px;
+      cursor: pointer;
+    }
+    .bottom-player .controls button:hover {
+      color: #17a44c;
+    }
+    .progress {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    #progressBar {
+      flex: 1;
+    }
+    .volume {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .song-info {
+      font-weight: bold;
+      color: #1db954;
+    }
+  </style>
+</body>
+</html>
